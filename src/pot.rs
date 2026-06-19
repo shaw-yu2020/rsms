@@ -1,6 +1,7 @@
 use pyo3::{pyclass, pymethods};
 
-#[pyclass]
+#[pyclass(from_py_object)]
+#[derive(Clone)]
 pub enum PotK {
     R0(),
     R1(f64),
@@ -8,7 +9,7 @@ pub enum PotK {
     R1R6R12(f64, f64, f64),
 }
 impl PotK {
-    pub fn calc(&self, r: f64) -> f64 {
+    pub fn pot_r(&self, r: f64) -> f64 {
         match self {
             PotK::R0() => 0.0,
             PotK::R1(r1) => r1 / r,

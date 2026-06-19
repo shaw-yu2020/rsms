@@ -11,3 +11,6 @@ crate-type = ["cdylib"]
 version = "0.28.3"
 features = ["abi3-py310"]
 
+[dependencies]
+rand = "0.10.1"
+
