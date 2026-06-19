@@ -1,3 +1,8 @@
 Cargo.lock
 target
 
+uv.lock
+*.pdb
+*.pyc
+*.pyd
+

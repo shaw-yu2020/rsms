@@ -4,3 +4,4 @@
 
 
 from rsms.rsms import hello
+from rsms.rsms import PotK
