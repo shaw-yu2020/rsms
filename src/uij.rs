@@ -15,7 +15,7 @@ pub struct Uij {
 #[pymethods]
 impl Uij {
     #[new]
-    fn new(moli: Vec<[f64; 3]>, molj: Vec<[f64; 3]>, potk: Vec<Vec<PotK>>) -> Self {
+    pub fn new(moli: Vec<[f64; 3]>, molj: Vec<[f64; 3]>, potk: Vec<Vec<PotK>>) -> Self {
         Uij { moli, molj, potk }
     }
     fn uij(&self, r: f64, phi1: f64, theta1: f64, phi2: f64, theta2: f64, psi2: f64) -> f64 {

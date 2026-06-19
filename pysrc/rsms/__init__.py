@@ -8,3 +8,4 @@ from rsms.rsms import PotK
 
 
 from rsms.uij_plus import UijPlus as Uij
+from rsms.bms_plus import BmsPlus as Bms

@@ -2,6 +2,8 @@ mod pot;
 use pot::PotK;
 mod uij;
 use uij::Uij;
+mod bms;
+use bms::Bms;
 mod euler;
 
 /// A Python function implemented in Rust.
@@ -18,5 +20,6 @@ fn pylib(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(hello, m)?)?;
     m.add_class::<PotK>()?;
     m.add_class::<Uij>()?;
+    m.add_class::<Bms>()?;
     Ok(())
 }
