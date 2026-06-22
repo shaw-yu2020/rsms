@@ -9,12 +9,40 @@ from rsms import hello
 from rsms import PotK
 from rsms import Uij
 from rsms import Bms
+from rsms import Cms
 
 NA = 6.02214076e23  # Avogadro constant, 1/mol
 K = 1.380649e-23  # Boltzmann constant, J/K
 E = 1.602176634e-19  # elementary charge, C
 EPSILON_0 = 8.8541878128e-12  # vacuum electric permittivity, F/m => C^2/J/m
 E2_COEF = E * E / (4 * np.pi * EPSILON_0) * 1e10 / K  # K*A
+
+
+LJ6 = -((0.37122 * 10) ** 6) * 1e3 / NA / K  # (kJ/mol)**(1/6)*nm -> K*A**6
+LJ12 = (0.3428 * 10) ** 12 * 1e3 / NA / K  # (kJ/mol)**(1/12)*nm -> K*A**12
+EO, EH = -0.8476, 0.4238
+SPCE_XYZ = [
+    [0.0, 0.0, 0.0],  # Oxygen
+    [1.0, 0.0, 0.0],  # Hydrogen
+    [-1.0 / 3.0, np.sqrt(8.0) / 3.0, 0.0],  # Hydrogen
+]
+SPCE_POT = [
+    [
+        PotK("R1R6R12", [EO * EO * E2_COEF, LJ6, LJ12]),
+        PotK("R1", [EO * EH * E2_COEF]),
+        PotK("R1", [EO * EH * E2_COEF]),
+    ],
+    [
+        PotK("R1", [EH * EO * E2_COEF]),
+        PotK("R1", [EH * EH * E2_COEF]),
+        PotK("R1", [EH * EH * E2_COEF]),
+    ],
+    [
+        PotK("R1", [EH * EO * E2_COEF]),
+        PotK("R1", [EH * EH * E2_COEF]),
+        PotK("R1", [EH * EH * E2_COEF]),
+    ],
+]
 
 
 def test_uij():
@@ -60,41 +88,9 @@ def test_uij():
         assert b_cal == b_ref, f"Error in T*={t_ref}, b_ref={b_ref}, b_cal={b_cal}"
 
 
-def test_bms():
+def test_bms(*, tol=2e-3):  # tol(default)=2e-3
     """test_bms"""
-    lj6 = -((0.37122 * 10) ** 6) * 1e3 / NA / K  # (kJ/mol)**(1/6)*nm -> K*A**6
-    lj12 = (0.3428 * 10) ** 12 * 1e3 / NA / K  # (kJ/mol)**(1/12)*nm -> K*A**12
-    e = {"o": -0.8476, "h": 0.4238}
-    spce = Bms(
-        [
-            [0.0, 0.0, 0.0],  # Oxygen
-            [1.0, 0.0, 0.0],  # Hydrogen
-            [-1.0 / 3.0, np.sqrt(8.0) / 3.0, 0.0],  # Hydrogen
-        ],
-        [
-            [0.0, 0.0, 0.0],  # Oxygen
-            [1.0, 0.0, 0.0],  # Hydrogen
-            [-1.0 / 3.0, np.sqrt(8.0) / 3.0, 0.0],  # Hydrogen
-        ],
-        [
-            [
-                PotK("R1R6R12", [e["o"] * e["o"] * E2_COEF, lj6, lj12]),
-                PotK("R1", [e["o"] * e["h"] * E2_COEF]),
-                PotK("R1", [e["o"] * e["h"] * E2_COEF]),
-            ],
-            [
-                PotK("R1", [e["h"] * e["o"] * E2_COEF]),
-                PotK("R1", [e["h"] * e["h"] * E2_COEF]),
-                PotK("R1", [e["h"] * e["h"] * E2_COEF]),
-            ],
-            [
-                PotK("R1", [e["h"] * e["o"] * E2_COEF]),
-                PotK("R1", [e["h"] * e["h"] * E2_COEF]),
-                PotK("R1", [e["h"] * e["h"] * E2_COEF]),
-            ],
-        ],
-        573.0,
-    )
+    spce = Bms(SPCE_XYZ, SPCE_XYZ, SPCE_POT, 573.0, tol=tol)
     tb_ref = [
         [373, -1856],
         [423, -907],
@@ -118,11 +114,40 @@ def test_bms():
         )
 
 
+def test_cms(*, tol=3e-3):  # tol(default)=3e-3
+    """test_cms"""
+    spce = Cms(
+        SPCE_XYZ, SPCE_XYZ, SPCE_XYZ, SPCE_POT, SPCE_POT, SPCE_POT, 573.0, tol=tol
+    )
+    tb_ref = [
+        [373, -10700000],
+        [423, -1080000],
+        [473, -140000],
+        [523, -8660],
+        [573, 11100],
+        [623, 11900],
+        [673, 9740],
+        [723, 7520],
+        [773, 5780],
+    ]
+    for tb in tb_ref:
+        t_ref = tb[0]
+        b_ref = tb[1]
+        b_cal = spce.calc_c(t_ref)
+        print(
+            f"[test_bms] T = {t_ref:.1f},",
+            f"b_ref = {b_ref:.1f},",
+            f"b_cal = {b_cal*(NA*1e-24)**2:.1f}",
+            f"diff = {100*(b_cal*(NA*1e-24)**2/b_ref-1):.2f}%",
+        )
+
+
 def main():
     """main"""
     print(hello())
     test_uij()
-    test_bms()
+    test_bms(tol=2e-2)
+    test_cms(tol=3e-2)
 
 
 if __name__ == "__main__":
