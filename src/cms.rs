@@ -1,5 +1,6 @@
 use super::PotK;
 use super::Uij;
+use super::abs_xyz;
 use super::euler::Euler;
 use pyo3::{pyclass, pymethods};
 use rand::prelude::*;
@@ -203,7 +204,7 @@ impl Cms {
         let mut sum_hs = 0.0;
         let mut sum_taylor = vec![0.0; order_max + 1];
         let mut mean_hs = [0.0; 10];
-        let mut mean_taylor = [const { Vec::<f64>::new() }; 10];
+        let mut mean_target = [0.0; 10];
         let mut flag = 0_usize;
         let num_inner = 1_000_000_usize;
         for i in 1..=1000 {
@@ -296,14 +297,14 @@ impl Cms {
                     .count();
             }
             mean_hs[i % 10] = sum_hs / (i * num_inner) as f64;
-            mean_taylor[i % 10] = (0..=order_max)
-                .map(|order| sum_taylor[order] / (i * num_inner) as f64)
-                .collect();
+            mean_target[i % 10] = sum_taylor[0] / (i * num_inner) as f64;
             let time_now = time_ini.elapsed().as_secs();
             if i >= 10 {
-                let result = (0..10)
-                    .map(|ii| mean_taylor[ii][0] / mean_hs[ii])
-                    .collect::<Vec<f64>>();
+                let result: Vec<f64> = mean_target
+                    .iter()
+                    .zip(mean_hs)
+                    .map(|(target, hs)| target / hs)
+                    .collect();
                 let mean_result = result.iter().sum::<f64>() / 10.0;
                 let deviation = result
                     .iter()
@@ -333,16 +334,13 @@ impl Cms {
                 );
             }
         }
-        (0..=order_max)
-            .map(|order| {
-                mean_taylor[flag % 10][order] / mean_hs[flag % 10] * virial_hs
-                    / factorials[order] as f64
+        sum_taylor
+            .iter()
+            .enumerate()
+            .map(|(i, taylor)| {
+                taylor / (flag * num_inner * (1..=i).product::<usize>()) as f64 / mean_hs[flag % 10]
+                    * virial_hs
             })
             .collect()
     }
-}
-
-#[inline]
-fn abs_xyz(xyz: &[f64; 3]) -> f64 {
-    (xyz[0] * xyz[0] + xyz[1] * xyz[1] + xyz[2] * xyz[2]).sqrt()
 }

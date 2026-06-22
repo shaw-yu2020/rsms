@@ -26,3 +26,8 @@ fn pylib(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Cms>()?;
     Ok(())
 }
+
+#[inline]
+fn abs_xyz(xyz: &[f64; 3]) -> f64 {
+    (xyz[0] * xyz[0] + xyz[1] * xyz[1] + xyz[2] * xyz[2]).sqrt()
+}

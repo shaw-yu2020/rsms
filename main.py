@@ -3,7 +3,7 @@
 # pylint: disable=import-error
 
 
-import numpy as np
+import math
 from scipy import integrate
 from rsms import hello
 from rsms import PotK
@@ -15,7 +15,7 @@ NA = 6.02214076e23  # Avogadro constant, 1/mol
 K = 1.380649e-23  # Boltzmann constant, J/K
 E = 1.602176634e-19  # elementary charge, C
 EPSILON_0 = 8.8541878128e-12  # vacuum electric permittivity, F/m => C^2/J/m
-E2_COEF = E * E / (4 * np.pi * EPSILON_0) * 1e10 / K  # K*A
+E2_COEF = E * E / (4 * math.pi * EPSILON_0) * 1e10 / K  # K*A
 
 
 LJ6 = -((0.37122 * 10) ** 6) * 1e3 / NA / K  # (kJ/mol)**(1/6)*nm -> K*A**6
@@ -24,7 +24,7 @@ EO, EH = -0.8476, 0.4238
 SPCE_XYZ = [
     [0.0, 0.0, 0.0],  # Oxygen
     [1.0, 0.0, 0.0],  # Hydrogen
-    [-1.0 / 3.0, np.sqrt(8.0) / 3.0, 0.0],  # Hydrogen
+    [-1.0 / 3.0, math.sqrt(8.0) / 3.0, 0.0],  # Hydrogen
 ]
 SPCE_POT = [
     [
@@ -48,7 +48,7 @@ SPCE_POT = [
 def test_uij():
     """test_uij"""
     sigma = 2.0
-    b_hs = 2.0 / 3.0 * np.pi * sigma**3
+    b_hs = 2.0 / 3.0 * math.pi * sigma**3
     lj = Uij(
         [[0.0, 0.0, 0.0]],
         [[0.0, 0.0, 0.0]],
@@ -72,7 +72,7 @@ def test_uij():
         b_ref = tb[1]
         result = integrate.quad(
             lambda r: (
-                np.exp(
+                math.exp(
                     -lj.ur_mean(r, 1e-6, 1, 1, 2)
                     / t_ref  # pylint: disable=cell-var-from-loop
                 )
@@ -81,10 +81,10 @@ def test_uij():
             * r
             * r,
             0.0,
-            np.inf,
+            math.inf,
             full_output=True,
         )
-        b_cal = round(-2 * np.pi * result[0] / b_hs, 4)
+        b_cal = round(-2 * math.pi * result[0] / b_hs, 4)
         assert b_cal == b_ref, f"Error in T*={t_ref}, b_ref={b_ref}, b_cal={b_cal}"
 
 

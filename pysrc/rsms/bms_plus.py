@@ -4,7 +4,6 @@
 # pylint: disable=too-many-arguments,too-many-positional-arguments
 
 
-import numpy as np
 from scipy.interpolate import pade
 from rsms.rsms import Bms
 
@@ -12,7 +11,7 @@ from rsms.rsms import Bms
 class BmsPlus:  # pylint: disable=too-few-public-methods
     """BmsPlus"""
 
-    def __init__(self, mol1, mol2, potk, t_ref, u_min=-np.inf, tol=2e-3, num=10):
+    def __init__(self, mol1, mol2, potk, t_ref, u_min=-float("inf"), tol=2e-3, num=10):
         taylor = Bms(mol1, mol2, potk).run(t_ref, u_min, tol, num)
         print(f"[BmsPlus.__init__] taylor_init = {taylor}")
         while True:

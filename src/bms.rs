@@ -1,5 +1,6 @@
 use super::PotK;
 use super::Uij;
+use super::abs_xyz;
 use super::euler::Euler;
 use pyo3::{pyclass, pymethods};
 use rand::prelude::*;
@@ -19,29 +20,27 @@ impl Bms {
     #[new]
     fn new(mol1: Vec<[f64; 3]>, mol2: Vec<[f64; 3]>, potk: Vec<Vec<PotK>>) -> Self {
         Self {
-            mol1: mol1.clone(),
-            mol2: mol2.clone(),
-            u12: Uij::new(mol1, mol2, potk),
+            u12: Uij::new(mol1.clone(), mol2.clone(), potk),
+            mol1,
+            mol2,
         }
     }
     fn run(&self, t_kelvin: f64, u_min: f64, dev_tol: f64, order_max: usize) -> Vec<f64> {
         let t_recip = t_kelvin.recip();
+        let u_plus_max = u_min * -t_recip;
         let mut rng = rand::rng();
         // hard-sphere
-        let sigma_hs =
-            1.0 + self.mol1.iter().fold(0_f64, |a, &xyz| {
-                a.max((xyz[0] * xyz[0] + xyz[1] * xyz[1] + xyz[2] * xyz[2]).sqrt())
-            }) + self.mol2.iter().fold(0_f64, |a, &xyz| {
-                a.max((xyz[0] * xyz[0] + xyz[1] * xyz[1] + xyz[2] * xyz[2]).sqrt())
-            });
+        let sigma_hs = 1.0
+            + self.mol1.iter().fold(0_f64, |a, &xyz| a.max(abs_xyz(&xyz)))
+            + self.mol2.iter().fold(0_f64, |a, &xyz| a.max(abs_xyz(&xyz)));
         let virial_hs = 2.0 / 3.0 * PI * sigma_hs.powi(3);
         let time_ini = Instant::now();
         // ini
         let mut xyz_new = [0.0, 0.0, 0.0];
         let mut zyz_new = [0.0, 0.0, 0.0];
-        let mut u12_new = 0_f64;
-        let mut f12_new = 0_f64;
-        while f12_new.abs() < 0.1 || f12_new.abs() > 10.0 {
+        let mut u12_plus = 0_f64;
+        let mut gamma_new = 0_f64;
+        while gamma_new.abs() < 0.1 || gamma_new.abs() > 10.0 {
             xyz_new = [
                 rng.sample::<f64, StandardNormal>(StandardNormal) * sigma_hs,
                 rng.sample::<f64, StandardNormal>(StandardNormal) * sigma_hs,
@@ -52,13 +51,13 @@ impl Bms {
                 rng.sample::<f64, StandardNormal>(StandardNormal) * PI,
                 rng.sample::<f64, StandardNormal>(StandardNormal) * PI,
             ];
-            u12_new = self.u12.calc(
+            u12_plus = self.u12.calc(
                 &self.mol1,
                 &Euler::from_zyz(&zyz_new).rotate(&self.mol2),
                 &xyz_new,
-            );
-            if u12_new > u_min {
-                f12_new = (-u12_new * t_recip).exp_m1();
+            ) * -t_recip;
+            if u12_plus < u_plus_max {
+                gamma_new = u12_plus.exp_m1();
             }
         }
         let time_now = time_ini.elapsed().as_secs();
@@ -71,10 +70,10 @@ impl Bms {
             time_now % 60
         );
         // opt
-        let mut scale = 1_f64;
         let mut xyz_old = xyz_new;
         let mut zyz_old = zyz_new;
-        let mut f12_old = f12_new;
+        let mut gamma_old = gamma_new;
+        let mut scale = 1_f64;
         let mut counter = 0_i32;
         for i in 1..=1_000_000 {
             xyz_new = [
@@ -87,21 +86,20 @@ impl Bms {
                 zyz_old[1] + rng.sample::<f64, StandardNormal>(StandardNormal) * PI,
                 zyz_old[2] + rng.sample::<f64, StandardNormal>(StandardNormal) * PI,
             ];
-            u12_new = self.u12.calc(
+            u12_plus = self.u12.calc(
                 &self.mol1,
                 &Euler::from_zyz(&zyz_new).rotate(&self.mol2),
                 &xyz_new,
-            );
-            if u12_new > u_min {
-                f12_new = (-u12_new * t_recip).exp_m1();
+            ) * -t_recip;
+            if u12_plus < u_plus_max {
+                gamma_new = u12_plus.exp_m1();
             } else {
-                u12_new = f64::INFINITY;
-                f12_new = -1.0;
+                (u12_plus, gamma_new) = (f64::NEG_INFINITY, -1.0);
             }
-            if rng.random::<f64>() < f12_new.abs() / f12_old.abs() {
+            if rng.random::<f64>() < gamma_new.abs() / gamma_old.abs() {
                 xyz_old = xyz_new;
                 zyz_old = zyz_new;
-                f12_old = f12_new;
+                gamma_old = gamma_new;
                 counter += 1;
             }
             if i % 100_000 == 0 {
@@ -121,11 +119,18 @@ impl Bms {
             }
         }
         // run
-        let mut u12_old = u12_new;
+        let mut f12_taylor = vec![0.0; order_max + 1];
+        f12_taylor[0] = gamma_old.signum();
+        if !u12_plus.is_infinite() {
+            f12_taylor[1] = u12_plus.exp() / gamma_old.abs() * u12_plus;
+            for i in 2..=order_max {
+                f12_taylor[i] = f12_taylor[i - 1] * u12_plus;
+            }
+        }
         let mut sum_hs = 0.0;
         let mut sum_taylor = vec![0_f64; order_max + 1];
         let mut mean_hs = [0.0; 10];
-        let mut mean_taylor = [const { Vec::<f64>::new() }; 10];
+        let mut mean_target = [0.0; 10];
         let mut flag = 0_usize;
         let num_inner = 1_000_000_usize;
         for i in 1..=1000 {
@@ -143,53 +148,50 @@ impl Bms {
                     zyz_old[1] + rng.sample::<f64, StandardNormal>(StandardNormal) * PI,
                     zyz_old[2] + rng.sample::<f64, StandardNormal>(StandardNormal) * PI,
                 ];
-                u12_new = self.u12.calc(
+                u12_plus = self.u12.calc(
                     &self.mol1,
                     &Euler::from_zyz(&zyz_new).rotate(&self.mol2),
                     &xyz_new,
-                );
-                if u12_new > u_min {
-                    f12_new = (-u12_new * t_recip).exp_m1();
+                ) * -t_recip;
+                if u12_plus < u_plus_max {
+                    gamma_new = u12_plus.exp_m1();
                 } else {
-                    u12_new = f64::INFINITY;
-                    f12_new = -1.0;
+                    (u12_plus, gamma_new) = (f64::NEG_INFINITY, -1.0);
                 }
-                if rng.random::<f64>() < f12_new.abs() / f12_old.abs() {
+                if rng.random::<f64>() < gamma_new.abs() / gamma_old.abs() {
                     xyz_old = xyz_new;
                     zyz_old = zyz_new;
-                    u12_old = u12_new;
-                    f12_old = f12_new;
+                    gamma_old = gamma_new;
+                    if u12_plus.is_infinite() {
+                        f12_taylor = vec![0.0; order_max + 1];
+                    } else {
+                        f12_taylor[1] = u12_plus.exp() / gamma_old.abs() * u12_plus;
+                        for i in 2..=order_max {
+                            f12_taylor[i] = f12_taylor[i - 1] * u12_plus;
+                        }
+                    }
+                    f12_taylor[0] = gamma_old.signum();
                 }
-                sum_hs += if (xyz_old[0] * xyz_old[0]
-                    + xyz_old[1] * xyz_old[1]
-                    + xyz_old[2] * xyz_old[2])
-                    .sqrt()
-                    < sigma_hs
-                {
+                sum_hs += if abs_xyz(&xyz_old) < sigma_hs {
                     -1.0
                 } else {
                     0.0
-                } / f12_old.abs();
-                sum_taylor[0] += f12_old.signum();
-                let mut taylor = (-u12_old * t_recip).exp() / f12_old.abs();
-                for sum_taylor_order in sum_taylor.iter_mut().skip(1) {
-                    taylor *= if u12_old.is_infinite() {
-                        0.0
-                    } else {
-                        -u12_old * t_recip
-                    };
-                    *sum_taylor_order += taylor;
-                }
+                } / gamma_old.abs();
+                sum_taylor
+                    .iter_mut()
+                    .zip(&f12_taylor)
+                    .map(|(sum, old)| *sum += old)
+                    .count();
             }
             mean_hs[i % 10] = sum_hs / (i * num_inner) as f64;
-            mean_taylor[i % 10] = (0..=order_max)
-                .map(|order| sum_taylor[order] / (i * num_inner) as f64)
-                .collect();
+            mean_target[i % 10] = sum_taylor[0] / (i * num_inner) as f64;
             let time_now = time_ini.elapsed().as_secs();
             if i > 10 {
-                let result = (0..10)
-                    .map(|ii| mean_taylor[ii][0] / mean_hs[ii])
-                    .collect::<Vec<f64>>();
+                let result: Vec<f64> = mean_target
+                    .iter()
+                    .zip(mean_hs)
+                    .map(|(target, hs)| target / hs)
+                    .collect();
                 let mean_result = result.iter().sum::<f64>() / 10.0;
                 let deviation = result
                     .iter()
@@ -219,10 +221,12 @@ impl Bms {
                 );
             }
         }
-        (0..=order_max)
-            .map(|order| {
-                mean_taylor[flag % 10][order] / mean_hs[flag % 10] * virial_hs
-                    / (1..=order).product::<usize>() as f64
+        sum_taylor
+            .iter()
+            .enumerate()
+            .map(|(i, taylor)| {
+                taylor / (flag * num_inner * (1..=i).product::<usize>()) as f64 / mean_hs[flag % 10]
+                    * virial_hs
             })
             .collect()
     }
