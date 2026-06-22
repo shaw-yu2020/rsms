@@ -88,9 +88,9 @@ def test_uij():
         assert b_cal == b_ref, f"Error in T*={t_ref}, b_ref={b_ref}, b_cal={b_cal}"
 
 
-def test_bms(*, tol=2e-3):  # tol(default)=2e-3
+def test_bms():
     """test_bms"""
-    spce = Bms(SPCE_XYZ, SPCE_XYZ, SPCE_POT, 573.0, tol=tol)
+    spce = Bms(SPCE_XYZ, SPCE_XYZ, SPCE_POT, 573.0)
     tb_ref = [
         [373, -1856],
         [423, -907],
@@ -114,11 +114,9 @@ def test_bms(*, tol=2e-3):  # tol(default)=2e-3
         )
 
 
-def test_cms(*, tol=3e-3):  # tol(default)=3e-3
+def test_cms():
     """test_cms"""
-    spce = Cms(
-        SPCE_XYZ, SPCE_XYZ, SPCE_XYZ, SPCE_POT, SPCE_POT, SPCE_POT, 573.0, tol=tol
-    )
+    spce = Cms(SPCE_XYZ, SPCE_XYZ, SPCE_XYZ, SPCE_POT, SPCE_POT, SPCE_POT, 573.0)
     tb_ref = [
         [373, -10700000],
         [423, -1080000],
@@ -146,8 +144,8 @@ def main():
     """main"""
     print(hello())
     test_uij()
-    test_bms(tol=2e-2)
-    test_cms(tol=3e-2)
+    test_bms()
+    test_cms()
 
 
 if __name__ == "__main__":

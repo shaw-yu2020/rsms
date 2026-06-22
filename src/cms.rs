@@ -205,7 +205,6 @@ impl Cms {
         let mut sum_taylor = vec![0.0; order_max + 1];
         let mut mean_hs = [0.0; 10];
         let mut mean_target = [0.0; 10];
-        let mut flag = 0_usize;
         let num_inner = 1_000_000_usize;
         for i in 1..=1000 {
             for _ in 1..num_inner {
@@ -299,7 +298,7 @@ impl Cms {
             mean_hs[i % 10] = sum_hs / (i * num_inner) as f64;
             mean_target[i % 10] = sum_taylor[0] / (i * num_inner) as f64;
             let time_now = time_ini.elapsed().as_secs();
-            if i >= 10 {
+            if i > 9 {
                 let result: Vec<f64> = mean_target
                     .iter()
                     .zip(mean_hs)
@@ -321,7 +320,6 @@ impl Cms {
                     time_now % 60
                 );
                 if deviation < f64::EPSILON * 1E4 || deviation / mean_result.abs() < dev_tol {
-                    flag = i;
                     break;
                 }
             } else {
@@ -337,10 +335,7 @@ impl Cms {
         sum_taylor
             .iter()
             .enumerate()
-            .map(|(i, taylor)| {
-                taylor / (flag * num_inner * (1..=i).product::<usize>()) as f64 / mean_hs[flag % 10]
-                    * virial_hs
-            })
+            .map(|(i, taylor)| taylor / sum_hs * virial_hs / factorials[i] as f64)
             .collect()
     }
 }

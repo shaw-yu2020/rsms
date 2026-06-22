@@ -38,7 +38,6 @@ impl Bms {
         // ini
         let mut xyz_new = [0.0, 0.0, 0.0];
         let mut zyz_new = [0.0, 0.0, 0.0];
-        let mut u12_plus = 0_f64;
         let mut gamma_new = 0_f64;
         while gamma_new.abs() < 0.1 || gamma_new.abs() > 10.0 {
             xyz_new = [
@@ -51,7 +50,7 @@ impl Bms {
                 rng.sample::<f64, StandardNormal>(StandardNormal) * PI,
                 rng.sample::<f64, StandardNormal>(StandardNormal) * PI,
             ];
-            u12_plus = self.u12.calc(
+            let u12_plus = self.u12.calc(
                 &self.mol1,
                 &Euler::from_zyz(&zyz_new).rotate(&self.mol2),
                 &xyz_new,
@@ -86,16 +85,16 @@ impl Bms {
                 zyz_old[1] + rng.sample::<f64, StandardNormal>(StandardNormal) * PI,
                 zyz_old[2] + rng.sample::<f64, StandardNormal>(StandardNormal) * PI,
             ];
-            u12_plus = self.u12.calc(
+            let u12_plus = self.u12.calc(
                 &self.mol1,
                 &Euler::from_zyz(&zyz_new).rotate(&self.mol2),
                 &xyz_new,
             ) * -t_recip;
-            if u12_plus < u_plus_max {
-                gamma_new = u12_plus.exp_m1();
+            gamma_new = if u12_plus < u_plus_max {
+                u12_plus.exp_m1()
             } else {
-                (u12_plus, gamma_new) = (f64::NEG_INFINITY, -1.0);
-            }
+                -1.0
+            };
             if rng.random::<f64>() < gamma_new.abs() / gamma_old.abs() {
                 xyz_old = xyz_new;
                 zyz_old = zyz_new;
@@ -121,7 +120,12 @@ impl Bms {
         // run
         let mut f12_taylor = vec![0.0; order_max + 1];
         f12_taylor[0] = gamma_old.signum();
-        if !u12_plus.is_infinite() {
+        let mut u12_plus = self.u12.calc(
+            &self.mol1,
+            &Euler::from_zyz(&zyz_old).rotate(&self.mol2),
+            &xyz_old,
+        ) * -t_recip;
+        if u12_plus < u_plus_max {
             f12_taylor[1] = u12_plus.exp() / gamma_old.abs() * u12_plus;
             for i in 2..=order_max {
                 f12_taylor[i] = f12_taylor[i - 1] * u12_plus;
@@ -131,7 +135,6 @@ impl Bms {
         let mut sum_taylor = vec![0_f64; order_max + 1];
         let mut mean_hs = [0.0; 10];
         let mut mean_target = [0.0; 10];
-        let mut flag = 0_usize;
         let num_inner = 1_000_000_usize;
         for i in 1..=1000 {
             for _ in 1..=num_inner {
@@ -153,22 +156,22 @@ impl Bms {
                     &Euler::from_zyz(&zyz_new).rotate(&self.mol2),
                     &xyz_new,
                 ) * -t_recip;
-                if u12_plus < u_plus_max {
-                    gamma_new = u12_plus.exp_m1();
+                gamma_new = if u12_plus < u_plus_max {
+                    u12_plus.exp_m1()
                 } else {
-                    (u12_plus, gamma_new) = (f64::NEG_INFINITY, -1.0);
-                }
+                    -1.0
+                };
                 if rng.random::<f64>() < gamma_new.abs() / gamma_old.abs() {
                     xyz_old = xyz_new;
                     zyz_old = zyz_new;
                     gamma_old = gamma_new;
-                    if u12_plus.is_infinite() {
-                        f12_taylor = vec![0.0; order_max + 1];
-                    } else {
+                    if u12_plus < u_plus_max {
                         f12_taylor[1] = u12_plus.exp() / gamma_old.abs() * u12_plus;
                         for i in 2..=order_max {
                             f12_taylor[i] = f12_taylor[i - 1] * u12_plus;
                         }
+                    } else {
+                        f12_taylor = vec![0.0; order_max + 1];
                     }
                     f12_taylor[0] = gamma_old.signum();
                 }
@@ -186,7 +189,7 @@ impl Bms {
             mean_hs[i % 10] = sum_hs / (i * num_inner) as f64;
             mean_target[i % 10] = sum_taylor[0] / (i * num_inner) as f64;
             let time_now = time_ini.elapsed().as_secs();
-            if i > 10 {
+            if i > 9 {
                 let result: Vec<f64> = mean_target
                     .iter()
                     .zip(mean_hs)
@@ -208,7 +211,6 @@ impl Bms {
                     time_now % 60
                 );
                 if deviation < f64::EPSILON * 1E4 || deviation / mean_result.abs() < dev_tol {
-                    flag = i;
                     break;
                 }
             } else {
@@ -224,10 +226,7 @@ impl Bms {
         sum_taylor
             .iter()
             .enumerate()
-            .map(|(i, taylor)| {
-                taylor / (flag * num_inner * (1..=i).product::<usize>()) as f64 / mean_hs[flag % 10]
-                    * virial_hs
-            })
+            .map(|(i, taylor)| taylor / sum_hs * virial_hs / (1..=i).product::<usize>() as f64)
             .collect()
     }
 }

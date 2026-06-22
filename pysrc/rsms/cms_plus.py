@@ -12,7 +12,7 @@ class CmsPlus:  # pylint: disable=too-few-public-methods
     """CmsPlus"""
 
     def __init__(
-        self, mol1, mol2, mol3, potk12, potk13, potk23, t_ref, tol=3e-3, num=10
+        self, mol1, mol2, mol3, potk12, potk13, potk23, t_ref, tol=9e-4, num=15
     ):
         taylor = Cms(mol1, mol2, mol3, potk12, potk13, potk23).run(t_ref, tol, num)
         print(f"[CmsPlus.__init__] taylor_init = {taylor}")
