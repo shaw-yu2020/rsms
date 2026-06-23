@@ -1,10 +1,12 @@
 use super::PotK;
 use super::Uij;
 use super::abs_xyz;
+use super::centralize;
 use super::euler::Euler;
 use pyo3::{pyclass, pymethods};
 use rand::prelude::*;
 use rand_distr::StandardNormal;
+use rayon::prelude::*;
 use std::f64::consts::PI;
 use std::time::Instant;
 
@@ -19,6 +21,8 @@ pub struct Bms {
 impl Bms {
     #[new]
     fn new(mol1: Vec<[f64; 3]>, mol2: Vec<[f64; 3]>, potk: Vec<Vec<PotK>>) -> Self {
+        let mol1 = centralize(mol1);
+        let mol2 = centralize(mol2);
         Self {
             u12: Uij::new(mol1.clone(), mol2.clone(), potk),
             mol1,
@@ -118,6 +122,11 @@ impl Bms {
             }
         }
         // run
+        let mut old_hs = if abs_xyz(&xyz_old) < sigma_hs {
+            -1.0
+        } else {
+            0.0
+        } / gamma_old.abs();
         let mut f12_taylor = vec![0.0; order_max + 1];
         f12_taylor[0] = gamma_old.signum();
         let mut u12_plus = self.u12.calc(
@@ -126,10 +135,13 @@ impl Bms {
             &xyz_old,
         ) * -t_recip;
         if u12_plus < u_plus_max {
-            f12_taylor[1] = u12_plus.exp() / gamma_old.abs() * u12_plus;
-            for i in 2..=order_max {
-                f12_taylor[i] = f12_taylor[i - 1] * u12_plus;
-            }
+            let taylor = u12_plus.exp() / gamma_old.abs();
+            f12_taylor
+                .par_iter_mut()
+                .enumerate()
+                .skip(1)
+                .map(|(order, f12)| *f12 = taylor * u12_plus.powi(order as i32))
+                .count();
         }
         let mut sum_hs = 0.0;
         let mut sum_taylor = vec![0_f64; order_max + 1];
@@ -165,23 +177,27 @@ impl Bms {
                     xyz_old = xyz_new;
                     zyz_old = zyz_new;
                     gamma_old = gamma_new;
+                    old_hs = if abs_xyz(&xyz_old) < sigma_hs {
+                        -1.0
+                    } else {
+                        0.0
+                    } / gamma_old.abs();
                     if u12_plus < u_plus_max {
-                        f12_taylor[1] = u12_plus.exp() / gamma_old.abs() * u12_plus;
-                        for i in 2..=order_max {
-                            f12_taylor[i] = f12_taylor[i - 1] * u12_plus;
-                        }
+                        let taylor = u12_plus.exp() / gamma_old.abs();
+                        f12_taylor
+                            .par_iter_mut()
+                            .enumerate()
+                            .skip(1)
+                            .map(|(order, f12)| *f12 = taylor * u12_plus.powi(order as i32))
+                            .count();
                     } else {
                         f12_taylor = vec![0.0; order_max + 1];
                     }
                     f12_taylor[0] = gamma_old.signum();
                 }
-                sum_hs += if abs_xyz(&xyz_old) < sigma_hs {
-                    -1.0
-                } else {
-                    0.0
-                } / gamma_old.abs();
+                sum_hs += old_hs;
                 sum_taylor
-                    .iter_mut()
+                    .par_iter_mut()
                     .zip(&f12_taylor)
                     .map(|(sum, old)| *sum += old)
                     .count();
@@ -191,13 +207,13 @@ impl Bms {
             let time_now = time_ini.elapsed().as_secs();
             if i > 9 {
                 let result: Vec<f64> = mean_target
-                    .iter()
+                    .par_iter()
                     .zip(mean_hs)
                     .map(|(target, hs)| target / hs)
                     .collect();
-                let mean_result = result.iter().sum::<f64>() / 10.0;
+                let mean_result = result.par_iter().sum::<f64>() / 10.0;
                 let deviation = result
-                    .iter()
+                    .par_iter()
                     .map(|value| (value - mean_result).powi(2))
                     .sum::<f64>()
                     .sqrt();
@@ -224,7 +240,7 @@ impl Bms {
             }
         }
         sum_taylor
-            .iter()
+            .par_iter()
             .enumerate()
             .map(|(i, taylor)| taylor / sum_hs * virial_hs / (1..=i).product::<usize>() as f64)
             .collect()

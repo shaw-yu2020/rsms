@@ -11,7 +11,7 @@ from rsms.rsms import Bms
 class BmsPlus:  # pylint: disable=too-few-public-methods
     """BmsPlus"""
 
-    def __init__(self, mol1, mol2, potk, t_ref, u_min=-float("inf"), tol=6e-4, num=10):
+    def __init__(self, mol1, mol2, potk, t_ref, u_min=-float("inf"), tol=6e-4, num=20):
         taylor = Bms(mol1, mol2, potk).run(t_ref, u_min, tol, num)
         print(f"[BmsPlus.__init__] taylor_init = {taylor}")
         while True:

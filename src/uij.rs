@@ -2,6 +2,7 @@ use super::PotK;
 use super::euler::Euler;
 use pyo3::{pyclass, pymethods};
 use rand::prelude::*;
+use rayon::prelude::*;
 use std::f64::consts::TAU;
 use std::time::Instant;
 
@@ -79,7 +80,7 @@ impl Uij {
 
 impl Uij {
     pub fn calc(&self, moli: &[[f64; 3]], molj: &[[f64; 3]], drij: &[f64; 3]) -> f64 {
-        moli.iter()
+        moli.par_iter()
             .enumerate()
             .map(|(i, xyz1)| {
                 molj.iter()

@@ -31,3 +31,12 @@ fn pylib(m: &Bound<'_, PyModule>) -> PyResult<()> {
 fn abs_xyz(xyz: &[f64; 3]) -> f64 {
     (xyz[0] * xyz[0] + xyz[1] * xyz[1] + xyz[2] * xyz[2]).sqrt()
 }
+
+fn centralize(xyz: Vec<[f64; 3]>) -> Vec<[f64; 3]> {
+    let dx = xyz.iter().map(|[x, _, _]| x).sum::<f64>() / xyz.len() as f64;
+    let dy = xyz.iter().map(|[_, y, _]| y).sum::<f64>() / xyz.len() as f64;
+    let dz = xyz.iter().map(|[_, _, z]| z).sum::<f64>() / xyz.len() as f64;
+    xyz.iter()
+        .map(|[x, y, z]| [x - dx, y - dy, z - dz])
+        .collect()
+}

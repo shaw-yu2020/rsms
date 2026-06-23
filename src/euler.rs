@@ -1,3 +1,5 @@
+use rayon::prelude::*;
+
 pub struct Euler {
     x: [f64; 3],
     y: [f64; 3],
@@ -67,7 +69,7 @@ impl Euler {
         }
     }
     pub fn rotate(&self, mol: &[[f64; 3]]) -> Vec<[f64; 3]> {
-        mol.iter()
+        mol.par_iter()
             .map(|xyz| {
                 [
                     self.x[0] * xyz[0] + self.x[1] * xyz[1] + self.x[2] * xyz[2],
