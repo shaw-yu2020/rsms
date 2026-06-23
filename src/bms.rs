@@ -6,7 +6,6 @@ use super::euler::Euler;
 use pyo3::{pyclass, pymethods};
 use rand::prelude::*;
 use rand_distr::StandardNormal;
-use rayon::prelude::*;
 use std::f64::consts::PI;
 use std::time::Instant;
 
@@ -135,13 +134,10 @@ impl Bms {
             &xyz_old,
         ) * -t_recip;
         if u12_plus < u_plus_max {
-            let taylor = u12_plus.exp() / gamma_old.abs();
-            f12_taylor
-                .par_iter_mut()
-                .enumerate()
-                .skip(1)
-                .map(|(order, f12)| *f12 = taylor * u12_plus.powi(order as i32))
-                .count();
+            f12_taylor[1] = u12_plus.exp() / gamma_old.abs() * u12_plus;
+            for i in 2..=order_max {
+                f12_taylor[i] = f12_taylor[i - 1] * u12_plus;
+            }
         }
         let mut sum_hs = 0.0;
         let mut sum_taylor = vec![0_f64; order_max + 1];
@@ -183,13 +179,10 @@ impl Bms {
                         0.0
                     } / gamma_old.abs();
                     if u12_plus < u_plus_max {
-                        let taylor = u12_plus.exp() / gamma_old.abs();
-                        f12_taylor
-                            .par_iter_mut()
-                            .enumerate()
-                            .skip(1)
-                            .map(|(order, f12)| *f12 = taylor * u12_plus.powi(order as i32))
-                            .count();
+                        f12_taylor[1] = u12_plus.exp() / gamma_old.abs() * u12_plus;
+                        for i in 2..=order_max {
+                            f12_taylor[i] = f12_taylor[i - 1] * u12_plus;
+                        }
                     } else {
                         f12_taylor = vec![0.0; order_max + 1];
                     }
@@ -197,7 +190,7 @@ impl Bms {
                 }
                 sum_hs += old_hs;
                 sum_taylor
-                    .par_iter_mut()
+                    .iter_mut()
                     .zip(&f12_taylor)
                     .map(|(sum, old)| *sum += old)
                     .count();
@@ -207,13 +200,13 @@ impl Bms {
             let time_now = time_ini.elapsed().as_secs();
             if i > 9 {
                 let result: Vec<f64> = mean_target
-                    .par_iter()
+                    .iter()
                     .zip(mean_hs)
                     .map(|(target, hs)| target / hs)
                     .collect();
-                let mean_result = result.par_iter().sum::<f64>() / 10.0;
+                let mean_result = result.iter().sum::<f64>() / 10.0;
                 let deviation = result
-                    .par_iter()
+                    .iter()
                     .map(|value| (value - mean_result).powi(2))
                     .sum::<f64>()
                     .sqrt();
@@ -240,7 +233,7 @@ impl Bms {
             }
         }
         sum_taylor
-            .par_iter()
+            .iter()
             .enumerate()
             .map(|(i, taylor)| taylor / sum_hs * virial_hs / (1..=i).product::<usize>() as f64)
             .collect()

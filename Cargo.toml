@@ -1,6 +1,6 @@
 [package]
 name = "rsms"
-version = "0.1.2"
+version = "0.1.3"
 edition = "2024"
 license = "MIT"
 description = "Mayer Sampling"
@@ -14,7 +14,6 @@ version = "0.28.3"
 features = ["abi3-py310"]
 
 [dependencies]
-rayon = "1.12"
 rand = "0.10.1"
 rand_distr = "0.6.0"
 

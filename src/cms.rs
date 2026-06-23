@@ -6,7 +6,6 @@ use super::euler::Euler;
 use pyo3::{pyclass, pymethods};
 use rand::prelude::*;
 use rand_distr::StandardNormal;
-use rayon::prelude::*;
 use std::f64::consts::PI;
 use std::time::Instant;
 
@@ -199,52 +198,31 @@ impl Cms {
         let mol2_plus = Euler::from_zyz(&zyz2_old).rotate(&self.mol2);
         let mol3_plus = Euler::from_zyz(&zyz3_old).rotate(&self.mol3);
         let u12_plus = self.u12.calc(&self.mol1, &mol2_plus, &d12_old) * -t_recip;
-        let taylor = u12_plus.exp();
-        let f12_taylor: Vec<f64> = (0..=order_max as i32)
-            .into_par_iter()
-            .map(|order| {
-                if order == 0 {
-                    u12_plus.exp_m1()
-                } else {
-                    taylor * u12_plus.powi(order)
-                }
-            })
-            .collect();
         let u13_plus = self.u13.calc(&self.mol1, &mol3_plus, &d13_old) * -t_recip;
-        let taylor = u13_plus.exp();
-        let f13_taylor: Vec<f64> = (0..=order_max as i32)
-            .into_par_iter()
-            .map(|order| {
-                if order == 0 {
-                    u13_plus.exp_m1()
-                } else {
-                    taylor * u13_plus.powi(order)
-                }
-            })
-            .collect();
         let u23_plus = self.u23.calc(&mol2_plus, &mol3_plus, &d23_old) * -t_recip;
-        let taylor = u23_plus.exp();
-        let f23_taylor: Vec<f64> = (0..=order_max as i32)
-            .into_par_iter()
-            .map(|order| {
-                if order == 0 {
-                    u23_plus.exp_m1()
-                } else {
-                    taylor * u23_plus.powi(order)
-                }
-            })
-            .collect();
-        let mut old_taylor: Vec<f64> = hash_map
-            .par_iter()
-            .map(|map_i| {
-                map_i
-                    .iter()
-                    .map(|(f, [i12, i13, i23])| {
-                        f * f12_taylor[*i12] * f13_taylor[*i13] * f23_taylor[*i23]
-                    })
-                    .sum()
-            })
-            .collect();
+        let mut f12_taylor = vec![0.0; order_max + 1];
+        let mut f13_taylor = vec![0.0; order_max + 1];
+        let mut f23_taylor = vec![0.0; order_max + 1];
+        f12_taylor[0] = u12_plus.exp_m1();
+        f13_taylor[0] = u13_plus.exp_m1();
+        f23_taylor[0] = u23_plus.exp_m1();
+        f12_taylor[1] = u12_plus.exp() * u12_plus;
+        f13_taylor[1] = u13_plus.exp() * u13_plus;
+        f23_taylor[1] = u23_plus.exp() * u23_plus;
+        for i in 2..=order_max {
+            f12_taylor[i] = f12_taylor[i - 1] * u12_plus;
+            f13_taylor[i] = f13_taylor[i - 1] * u13_plus;
+            f23_taylor[i] = f23_taylor[i - 1] * u23_plus;
+        }
+        let mut old_taylor = vec![0_f64; order_max + 1];
+        old_taylor.iter_mut().enumerate().for_each(|(i, taylor)| {
+            *taylor = hash_map[i]
+                .iter()
+                .map(|(f, [i12, i13, i23])| {
+                    f * f12_taylor[*i12] * f13_taylor[*i13] * f23_taylor[*i23]
+                })
+                .sum()
+        });
         let mut sum_hs = 0.0;
         let mut sum_taylor = vec![0.0; order_max + 1];
         let mut mean_hs = [0.0; 10];
@@ -304,55 +282,30 @@ impl Cms {
                     } else {
                         0.0
                     } / gamma_old.abs();
-                    let taylor = u12_plus.exp();
-                    let f12_taylor: Vec<f64> = (0..=order_max as i32)
-                        .into_par_iter()
-                        .map(|order| {
-                            if order == 0 {
-                                u12_plus.exp_m1()
-                            } else {
-                                taylor * u12_plus.powi(order)
-                            }
-                        })
-                        .collect();
-                    let taylor = u13_plus.exp();
-                    let f13_taylor: Vec<f64> = (0..=order_max as i32)
-                        .into_par_iter()
-                        .map(|order| {
-                            if order == 0 {
-                                u13_plus.exp_m1()
-                            } else {
-                                taylor * u13_plus.powi(order)
-                            }
-                        })
-                        .collect();
-                    let taylor = u23_plus.exp();
-                    let f23_taylor: Vec<f64> = (0..=order_max as i32)
-                        .into_par_iter()
-                        .map(|order| {
-                            if order == 0 {
-                                u23_plus.exp_m1()
-                            } else {
-                                taylor * u23_plus.powi(order)
-                            }
-                        })
-                        .collect();
-                    old_taylor = hash_map
-                        .par_iter()
-                        .map(|map_i| {
-                            map_i
-                                .iter()
-                                .map(|(f, [i12, i13, i23])| {
-                                    f * f12_taylor[*i12] * f13_taylor[*i13] * f23_taylor[*i23]
-                                })
-                                .sum()
-                        })
-                        .collect();
+                    f12_taylor[0] = u12_plus.exp_m1();
+                    f13_taylor[0] = u13_plus.exp_m1();
+                    f23_taylor[0] = u23_plus.exp_m1();
+                    f12_taylor[1] = u12_plus.exp() * u12_plus;
+                    f13_taylor[1] = u13_plus.exp() * u13_plus;
+                    f23_taylor[1] = u23_plus.exp() * u23_plus;
+                    for i in 2..=order_max {
+                        f12_taylor[i] = f12_taylor[i - 1] * u12_plus;
+                        f13_taylor[i] = f13_taylor[i - 1] * u13_plus;
+                        f23_taylor[i] = f23_taylor[i - 1] * u23_plus;
+                    }
+                    old_taylor.iter_mut().enumerate().for_each(|(i, taylor)| {
+                        *taylor = hash_map[i]
+                            .iter()
+                            .map(|(f, [i12, i13, i23])| {
+                                f * f12_taylor[*i12] * f13_taylor[*i13] * f23_taylor[*i23]
+                            })
+                            .sum()
+                    });
                 }
                 sum_hs += old_hs;
                 sum_taylor[0] += gamma_old.signum();
                 sum_taylor
-                    .par_iter_mut()
+                    .iter_mut()
                     .zip(&old_taylor)
                     .skip(1)
                     .map(|(sum, old)| *sum += old / gamma_old.abs())
@@ -363,13 +316,13 @@ impl Cms {
             let time_now = time_ini.elapsed().as_secs();
             if i > 9 {
                 let result: Vec<f64> = mean_target
-                    .par_iter()
+                    .iter()
                     .zip(mean_hs)
                     .map(|(target, hs)| target / hs)
                     .collect();
-                let mean_result = result.par_iter().sum::<f64>() / 10.0;
+                let mean_result = result.iter().sum::<f64>() / 10.0;
                 let deviation = result
-                    .par_iter()
+                    .iter()
                     .map(|value| (value - mean_result).powi(2))
                     .sum::<f64>()
                     .sqrt();
@@ -396,7 +349,7 @@ impl Cms {
             }
         }
         sum_taylor
-            .par_iter()
+            .iter()
             .enumerate()
             .map(|(i, taylor)| taylor / sum_hs * virial_hs / factorials[i] as f64)
             .collect()
