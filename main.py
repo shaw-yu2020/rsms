@@ -136,7 +136,7 @@ def test_cms():
             f"[test_bms] T = {t_ref:.1f},",
             f"b_ref = {b_ref:.1f},",
             f"b_cal = {b_cal*(NA*1e-24)**2:.1f}",
-            f"diff = {100*(b_cal*(NA*1e-24)**2/b_ref-1):.2f}%",
+            f"diff = {b_cal*(NA*1e-24)**2-b_ref:.2f}%",
         )
 
 

@@ -6,6 +6,7 @@ use super::euler::Euler;
 use pyo3::{pyclass, pymethods};
 use rand::prelude::*;
 use rand_distr::StandardNormal;
+use std::f64::consts::FRAC_1_SQRT_2;
 use std::f64::consts::PI;
 use std::time::Instant;
 
@@ -206,13 +207,13 @@ impl Cms {
         f12_taylor[0] = u12_plus.exp_m1();
         f13_taylor[0] = u13_plus.exp_m1();
         f23_taylor[0] = u23_plus.exp_m1();
-        f12_taylor[1] = u12_plus.exp() * u12_plus;
-        f13_taylor[1] = u13_plus.exp() * u13_plus;
-        f23_taylor[1] = u23_plus.exp() * u23_plus;
+        f12_taylor[1] = u12_plus.exp() * u12_plus * FRAC_1_SQRT_2;
+        f13_taylor[1] = u13_plus.exp() * u13_plus * FRAC_1_SQRT_2;
+        f23_taylor[1] = u23_plus.exp() * u23_plus * FRAC_1_SQRT_2;
         for i in 2..=order_max {
-            f12_taylor[i] = f12_taylor[i - 1] * u12_plus;
-            f13_taylor[i] = f13_taylor[i - 1] * u13_plus;
-            f23_taylor[i] = f23_taylor[i - 1] * u23_plus;
+            f12_taylor[i] = f12_taylor[i - 1] * u12_plus * FRAC_1_SQRT_2;
+            f13_taylor[i] = f13_taylor[i - 1] * u13_plus * FRAC_1_SQRT_2;
+            f23_taylor[i] = f23_taylor[i - 1] * u23_plus * FRAC_1_SQRT_2;
         }
         let mut old_taylor = vec![0_f64; order_max + 1];
         old_taylor.iter_mut().enumerate().for_each(|(i, taylor)| {
@@ -285,13 +286,13 @@ impl Cms {
                     f12_taylor[0] = u12_plus.exp_m1();
                     f13_taylor[0] = u13_plus.exp_m1();
                     f23_taylor[0] = u23_plus.exp_m1();
-                    f12_taylor[1] = u12_plus.exp() * u12_plus;
-                    f13_taylor[1] = u13_plus.exp() * u13_plus;
-                    f23_taylor[1] = u23_plus.exp() * u23_plus;
+                    f12_taylor[1] = u12_plus.exp() * u12_plus * FRAC_1_SQRT_2;
+                    f13_taylor[1] = u13_plus.exp() * u13_plus * FRAC_1_SQRT_2;
+                    f23_taylor[1] = u23_plus.exp() * u23_plus * FRAC_1_SQRT_2;
                     for i in 2..=order_max {
-                        f12_taylor[i] = f12_taylor[i - 1] * u12_plus;
-                        f13_taylor[i] = f13_taylor[i - 1] * u13_plus;
-                        f23_taylor[i] = f23_taylor[i - 1] * u23_plus;
+                        f12_taylor[i] = f12_taylor[i - 1] * u12_plus * FRAC_1_SQRT_2;
+                        f13_taylor[i] = f13_taylor[i - 1] * u13_plus * FRAC_1_SQRT_2;
+                        f23_taylor[i] = f23_taylor[i - 1] * u23_plus * FRAC_1_SQRT_2;
                     }
                     old_taylor.iter_mut().enumerate().for_each(|(i, taylor)| {
                         *taylor = hash_map[i]
